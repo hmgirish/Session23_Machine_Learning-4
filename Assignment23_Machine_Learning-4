@@ -1,0 +1,144 @@
+Predicting Survival in the Titanic Data Set
+We will be using a decision tree to make predictions about the Titanic data set from
+Kaggle. This data set provides information on the Titanic passengers and can be used to
+predict whether a passenger survived or not.
+
+Solution:
+
+#Importing Modules
+
+import numpy as np
+import pandas as pd
+import seaborn as sb
+import matplotlib.pyplot as plt
+import sklearn
+from pandas import Series, DataFrame
+from pylab import rcParams
+from sklearn import preprocessing
+from sklearn.linear_model import LogisticRegression
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.model_selection import train_test_split
+from sklearn import metrics
+from sklearn.metrics import classification_report
+%matplotlib inline
+
+#Importing Dataset
+
+url= "https://raw.githubusercontent.com/BigDataGal/Python-for-Data-Science/master/titanic-train.csv"
+titanic = pd.read_csv(url)
+titanic.info()
+
+# Median of age gender wise
+titanic.groupby('Sex').Age.median()
+
+# visualize using boxplot
+titanic[titanic.Age.notnull()].boxplot('Age','Sex');
+
+# Replace null values of age with median age of gender
+age_sex_median = titanic.groupby('Sex').Age.transform('median')
+titanic.Age.fillna(age_sex_median, inplace=True)
+
+# Convert the sex attribute from category to numeric
+titanic_dummies_sex = pd.get_dummies(titanic.Sex, drop_first=True, prefix='Gender')
+titanic = titanic.join(titanic_dummies_sex)
+titanic.head()
+
+# As per instructions, using only Pclass, Sex, Age, SibSp (Siblings aboard), Parch (Parents/children aboard) and Fare to predict whether a passenger survived.
+
+X = titanic[['Pclass','Gender_male','Age','SibSp','Parch','Fare']]
+y = titanic['Survived']
+
+# split data randomly into 70% training and 30% test
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=0)
+
+# Training the model and make predictions
+
+# train the decision tree
+dtree = DecisionTreeClassifier(criterion='entropy', random_state=0)
+dtree.fit(X_train, y_train)
+
+# use the model to make predictions with the test data
+y_pred = dtree.predict(X_test)
+
+metrics.confusion_matrix(y_train, dtree.predict(X_train))
+
+conf_mat = metrics.confusion_matrix(y_test, y_pred)
+print(conf_mat)
+TN = conf_mat[0][0]
+FP = conf_mat[0][1]
+FN = conf_mat[1][0]
+TP = conf_mat[1][1]
+print("True Negative :",TN)
+print("False Positive :",FP)
+print("False Negative :",FN)
+print("True Positive :",TP)
+
+# how did my model perform?
+Error = (FP + FN)/(TN+FP+FN+TP)
+print('Classification Error: {:.2f}'.format(Error))
+Accuracy = (TP + TN)/(TN+FP+FN+TP)
+print("Accuracy : {:.2f}".format(Accuracy))
+# Out of actual survived, how much is predicted as survived?
+Sensitivity = TP/(FN+TP)
+print("Sensitivity/Recall/True Positive Rate: {:.2f}".format(Sensitivity))
+# Out of actual not survived, how much is predicted as not survived?
+Specifity = TN/(FP+TN)
+print("Specifity : {:.2f}".format(Specifity))
+# when the actual not survived, how much is predicted as survived?
+FPR = FP/(TN+FP)
+print("False Positive Rate : {:.2f}".format(FPR))
+# when the predicted value is survived, how much prediction is correct?
+Precision_1 = TP/(FP+TP)
+print("Precision for 1: {:.2f}".format(Precision_1))
+# when the predicted value is not survived, how much prediction is correct?
+Precision_0 = TN/(FN+TN)
+print("Precision for 0 : {:.2f}".format(Precision_0))
+
+# The F1-score reveals weighted average between precision and recall which means if the value approaches 1, it's infered as a good score.
+
+report = classification_report(y_test, y_pred)
+print(report)
+
+# Null accuracy: Accuracy that could be achieved by always predicting the most accurate class
+
+# Examine the class distribution of the testing set
+y_test.value_counts()
+
+# Calculate the percentage of Ones
+y_test.mean()
+
+# Calculate the percentage of Zeros
+1-y_test.mean()
+
+# Calculate the null accuracy which suggets passenger died is correct 62% of the time
+max(y_test.mean(),1-y_test.mean())
+
+# Calculate the null accuracy (for multi class classification problem)
+y_test.value_counts().head(1)/len(y_test)
+
+# Comparing the true and predicted response values
+
+# Print the first 25 true and predicted responses
+print('True values : ',y_test.values[0:25])
+print('Pred values : ',y_pred[0:25])
+
+X = titanic[['Pclass','Gender_male','Age','SibSp','Parch','Fare']].iloc[:841,:]
+from sklearn.cross_validation import KFold
+cv = KFold(n=len(X),  # Number of elements
+           n_folds=29,            # Desired number of cv folds
+           random_state=48) 
+fold_accuracy = []
+
+for train_fold, valid_fold in cv:
+    train = X.loc[train_fold] # Extract train data with cv indices
+    valid = X.loc[valid_fold] # Extract valid data with cv indices
+    
+    train_y = y.loc[train_fold]
+    valid_y = y.loc[valid_fold]
+    
+    model = dtree.fit(X = train, y = train_y)
+    valid_acc = model.score(X = valid, y = valid_y)
+    fold_accuracy.append(valid_acc)    
+
+print("Accuracy per fold: ", fold_accuracy, "\n")
+print("Average accuracy: ", sum(fold_accuracy)/len(fold_accuracy))
